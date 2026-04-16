@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Termi — Yunlong Le</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0c0c0c;
+    color: #cccccc;
+    font-family: 'Cascadia Code', 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* 主终端区域 — 整体可滚动 */
+  #terminal {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 12px;
+  }
+
+  /* 自定义滚动条 */
+  #terminal::-webkit-scrollbar { width: 6px; }
+  #terminal::-webkit-scrollbar-track { background: #0c0c0c; }
+  #terminal::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+  #terminal::-webkit-scrollbar-thumb:hover { background: #666; }
+
+  /* 输出区域 */
+  #output {
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  /* 欢迎卡片 — CSS 实线边框 */
+  .welcome-box {
+    position: relative;
+    border: 1px solid #da7756;
+    border-radius: 8px;
+    margin: 10px 0 12px;
+    font-size: 13px;
+    white-space: normal;
+    max-width: 780px;
+  }
+  .welcome-box-title {
+    position: absolute;
+    top: -0.6em;
+    left: 16px;
+    background: #0c0c0c;
+    padding: 0 6px;
+    color: #da7756;
+    line-height: 1;
+  }
+  .welcome-body {
+    display: flex;
+  }
+  .welcome-left {
+    flex: 0 0 48%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 12px;
+    gap: 1px;
+  }
+  .welcome-right {
+    flex: 1;
+    padding: 10px 14px;
+    border-left: 1px solid #da7756;
+  }
+  .welcome-hello {
+    color: #da7756;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  .welcome-logo {
+    color: #da7756;
+    line-height: 1.3;
+  }
+  .welcome-info {
+    color: #777;
+    font-size: 12px;
+    margin-top: 2px;
+  }
+  .welcome-sep {
+    border: none;
+    border-top: 1px solid #444;
+    margin: 8px 0;
+  }
+
+  /* 输入行 — 上下白色实线 */
+  #input-line {
+    display: flex;
+    align-items: center;
+    padding: 6px 0;
+    border-top: 1px solid #cccccc;
+    border-bottom: 1px solid #cccccc;
+    margin-top: 8px;
+  }
+  #prompt {
+    color: #8a2be2;
+    font-weight: bold;
+    margin-right: 6px;
+    white-space: nowrap;
+  }
+  #cmd-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #cccccc;
+    font-family: inherit;
+    font-size: 14px;
+    caret-color: #cccccc;
+  }
+
+  /* 终端风格表格 */
+  .term-table {
+    white-space: normal;
+    margin: 6px 0 6px 8px;
+    border-collapse: collapse;
+  }
+  .term-table td {
+    padding: 3px 16px 3px 0;
+    vertical-align: top;
+  }
+  .term-table .label {
+    color: #dcdcaa;
+    white-space: nowrap;
+    min-width: 100px;
+  }
+
+  /* 项目卡片分隔 */
+  .project-divider {
+    color: #da7756;
+    margin: 4px 0 6px 0;
+  }
+
+  /* 输出样式 */
+  .cmd-echo { color: #888; }
+  .cmd-echo .echo-prompt { color: #8a2be2; font-weight: bold; }
+  .error { color: #f44747; }
+  .success { color: #4ec9b0; }
+  .section-title { color: #569cd6; font-weight: bold; }
+  .highlight { color: #dcdcaa; }
+  .dim { color: #777; }
+  .tag { color: #4ec9b0; }
+  .link { color: #9cdcfe; text-decoration: underline; }
+  .link:hover { color: #cee4fe; }
+  .separator { color: #444; }
+  .output-block { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<div id="terminal">
+  <div id="output"></div>
+  <div id="input-line">
+    <span id="prompt">&gt;</span>
+    <input id="cmd-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" autofocus>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// 欢迎卡片
+// ============================================================
+const WELCOME_HTML = `<div class="welcome-box">
+  <span class="welcome-box-title">─── Claude Code v2.1.110 ───</span>
+  <div class="welcome-body">
+    <div class="welcome-left">
+      <div class="welcome-hello">Welcome!</div>
+      <div class="welcome-logo">▐▛███▜▌</div>
+      <div class="welcome-logo">▝▜█████▛▘</div>
+      <div class="welcome-logo">&nbsp;▘▘ ▝▝</div>
+      <div class="welcome-info">Sonnet 4.6 (1M context) · API Usage Billing</div>
+      <div class="welcome-info">D:\\mydesktop\\桌面文档\\resume2</div>
+    </div>
+    <div class="welcome-right">
+      <div class="section-title">Tips for getting started</div>
+      <div style="margin-top:4px">输入 <span class="highlight">help</span> 查看所有可用指令</div>
+      <hr class="welcome-sep">
+      <div class="section-title">Recent activity</div>
+      <div class="dim" style="margin-top:4px">No recent activity</div>
+    </div>
+  </div>
+</div>`;
+
+// ============================================================
+// 命令定义
+// ============================================================
+const commands = {
+
+  'help': () => `<span class="section-title">可用指令</span>
+
+  <span class="highlight">about</span>          <span class="dim">—</span> 关于我
+  <span class="highlight">skills</span>         <span class="dim">—</span> 技能栈
+  <span class="highlight">projects</span>       <span class="dim">—</span> 项目经历
+  <span class="highlight">experience</span>     <span class="dim">—</span> 工作经历
+  <span class="highlight">education</span>      <span class="dim">—</span> 教育背景
+  <span class="highlight">contact</span>        <span class="dim">—</span> 联系方式
+  <span class="highlight">clear</span>          <span class="dim">—</span> 清屏
+
+  <span class="dim">支持 Tab 键自动补全 · 指令前加 / 也可识别</span>`,
+
+  // ─────────────────────── 关于我 ───────────────────────
+  'about': () => `<span class="section-title">关于我</span>
+
+  大家好，我是 <span class="highlight">乐云龙 (Yunlong Le)</span>。
+
+  全栈工程师，核心方向 <span class="tag">AI Agent</span> 与 <span class="tag">RAG 系统</span> 的工程化落地。
+  具备从模型选型、Prompt 设计、多智能体编排到生产部署的全链路能力。
+
+  <span class="highlight">AI 早期实践者</span> — 2023 年 3 月起持续使用大语言模型，
+  先后深度体验 ChatGPT、Claude、Gemini、Grok、Kimi 等主流模型。
+  在内网搭建过 LLaMA 推理服务，探索过 DeepSeek 量化模型 (GGUF)
+  用于优化本地开发环境，具备 <span class="tag">模型私有化部署</span> 实战经验。
+
+  已独立交付基于 <span class="tag">Multi-Agent 架构</span> 的 AI 原生 Android 应用，
+  Java 主力出身，在银行领域独立交付过累计处理流水 <span class="highlight">超百亿元</span> 的资金核心系统。
+
+  对 <span class="highlight">Harness Engineering</span> 有浓厚兴趣，深度使用 Claude Code，
+  相信 AI 正在重塑软件工程的范式。
+  当前目标：加入 AI 团队，在大模型 Agent / RAG 方向持续创造价值。
+
+  <span class="dim">输入 skills 查看技能栈，projects 查看项目经历。</span>`,
+
+  // ─────────────────────── 技能栈 ───────────────────────
+  'skills': () => `<span class="section-title">技能栈</span>
+
+<table class="term-table">
+<tr><td class="label">编程语言</td><td><span class="tag">Java</span> <span class="dim">(主力·精通)</span>  <span class="tag">Go</span>  <span class="tag">Python</span></td></tr>
+<tr><td class="label">AI 核心</td><td><span class="tag">大模型原理</span>  <span class="tag">RAG 系统</span>  <span class="tag">Prompt Engineering</span><br><span class="tag">Agent 工具调用</span>  <span class="tag">Multi-Agent 架构</span>  <span class="tag">工程化与系统设计</span></td></tr>
+<tr><td class="label">框架 / SDK</td><td><span class="tag">Spring Boot</span>  <span class="tag">Jetpack Compose</span>  <span class="tag">Vercel AI SDK</span>  <span class="tag">React</span></td></tr>
+<tr><td class="label">大模型经验</td><td>GPT · Claude · Gemini · Grok · Kimi<br>LLaMA <span class="dim">(内网部署)</span> · DeepSeek <span class="dim">(量化部署 / GGUF)</span></td></tr>
+<tr><td class="label">工具链</td><td><span class="tag">Claude Code</span>  <span class="tag">Git / GitHub</span>  <span class="tag">WSL</span>  <span class="tag">Docker</span>  <span class="tag">Nginx</span>  <span class="tag">PostgreSQL</span></td></tr>
+<tr><td class="label">其他</td><td><span class="tag">区块链技术</span>  <span class="tag">数据结构与算法</span> <span class="dim">(GitHub 刷题 130+)</span></td></tr>
+</table>
+
+  <span class="dim">已系统准备大模型方向 48 道核心面试题，覆盖模型基础、RAG、</span>
+  <span class="dim">Prompt Engineering、Agent 工具调用、工程化设计、垂直落地等领域。</span>`,
+
+  // ─────────────────────── 项目经历 ───────────────────────
+  'projects': () => `<span class="section-title">项目经历</span>
+
+  <span class="project-divider">━━━ Tally · AI 原生 Android 应用 ━━━</span>
+
+  用户通过自然语言对话即可完成日程创建、冲突检测、费用记录与关联。
+  后端基于 <span class="tag">Multi-Agent</span> 架构，使用 <span class="tag">Kimi-k2.5</span> 模型，
+  通过 Vercel AI SDK 的 <span class="highlight">streamText(maxSteps=5)</span> 实现多步工具链式调用。
+  前端 Jetpack Compose 聊天界面 + React WebView 结构化视图，
+  通过 <span class="highlight">@JavascriptInterface</span> 实现 Native ↔ WebView ↔ AI 三层跨层通信。
+
+<table class="term-table">
+<tr><td class="label">技术栈</td><td><span class="tag">Kotlin</span> <span class="tag">TypeScript</span> <span class="tag">React</span> <span class="tag">Vercel AI SDK</span> <span class="tag">PostgreSQL</span></td></tr>
+<tr><td class="label">核心能力</td><td>Multi-Agent 链式工具调用 · 流式 SSE 响应 · WebView 跨层通信</td></tr>
+<tr><td class="label">部署</td><td>小米 17 真机端到端验证 · 阿里云 ECS + Docker + Nginx</td></tr>
+<tr><td class="label">规模</td><td>33 files / 3,312 lines · 12 天开发周期 · Prompt Caching 节省 70% token 成本</td></tr>
+<tr><td class="label">仓库</td><td><a class="link" href="https://github.com/yunlong-le/Tally" target="_blank">github.com/yunlong-le/Tally</a></td></tr>
+</table>
+
+  <span class="project-divider">━━━ Termi · 终端风格个人简历 ━━━</span>
+
+  你正在使用的这个页面。仿 Claude Code 界面交互，
+  支持命令输入、Tab 补全，部署于 GitHub Pages。
+
+<table class="term-table">
+<tr><td class="label">技术栈</td><td><span class="tag">HTML</span> <span class="tag">CSS</span> <span class="tag">JavaScript</span></td></tr>
+<tr><td class="label">仓库</td><td><a class="link" href="https://github.com/yunlong-le/yunlong-le.github.io" target="_blank">github.com/yunlong-le/yunlong-le.github.io</a></td></tr>
+</table>`,
+
+  // ─────────────────────── 工作经历 ───────────────────────
+  'experience': () => `<span class="section-title">工作经历</span>
+
+  <span class="project-divider">━━━ 某银行 · 核心资金系统独立开发 ━━━</span>
+
+  独立负责与资金直接相关的核心业务系统的 <span class="highlight">全生命周期交付</span>：
+  前期方案设计 → 跨项目组协调 → 代码开发 → 联调测试 → 部署上线 → 线上运维。
+
+<table class="term-table">
+<tr><td class="label">技术栈</td><td><span class="tag">Java</span> <span class="tag">Spring Boot</span></td></tr>
+<tr><td class="label">职责范围</td><td>独立交付，与信贷项目组、客户催收项目组等多方沟通协调</td></tr>
+<tr><td class="label">系统规模</td><td>累计处理资金流水总额 <span class="highlight">超百亿元</span>，至今仍在稳定运行</td></tr>
+<tr><td class="label">应急能力</td><td>线上 Bug 紧急修复、日常升级维护、生产环境保障</td></tr>
+</table>
+
+  <span class="dim">在银行内部，资金相关项目的独立交付权代表高度信任与项目重要性。</span>`,
+
+  // ─────────────────────── 教育背景 ───────────────────────
+  'education': () => `<span class="section-title">教育背景</span>
+
+  <span class="highlight">（待补充）</span>
+
+  <span class="dim">请告诉我你的学校、专业和学位信息。</span>`,
+
+  // ─────────────────────── 联系方式 ───────────────────────
+  'contact': () => `<span class="section-title">联系方式</span>
+
+  <span class="highlight">GitHub</span>    <a class="link" href="https://github.com/yunlong-le" target="_blank">github.com/yunlong-le</a>
+  <span class="highlight">主页</span>      <a class="link" href="https://yunlong-le.github.io" target="_blank">yunlong-le.github.io</a>
+  <span class="highlight">Email</span>     <span class="dim">（待补充）</span>
+
+  <span class="dim">请告诉我你的真实联系方式。</span>`,
+
+  'clear': () => null,
+};
+
+const cmdNames = Object.keys(commands);
+
+// 标准化输入：去掉开头的 /，转小写
+function normalizeCmd(raw) {
+  let cmd = raw.toLowerCase().trim();
+  if (cmd.startsWith('/')) cmd = cmd.slice(1);
+  return cmd;
+}
+
+// ============================================================
+// 渲染
+// ============================================================
+const terminal = document.getElementById('terminal');
+const output   = document.getElementById('output');
+const input    = document.getElementById('cmd-input');
+
+function appendHTML(html) {
+  const div = document.createElement('div');
+  div.className = 'output-block';
+  div.innerHTML = html;
+  output.appendChild(div);
+  scrollToBottom();
+}
+
+function scrollToBottom() {
+  terminal.scrollTop = terminal.scrollHeight;
+}
+
+// 初始化欢迎卡片
+(function init() {
+  const div = document.createElement('div');
+  div.id = 'welcome';
+  div.className = 'output-block';
+  div.innerHTML = WELCOME_HTML;
+  output.appendChild(div);
+})();
+
+// 键盘事件
+input.addEventListener('keydown', function(e) {
+  // Tab 补全
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    handleTab();
+    return;
+  }
+  if (e.key !== 'Enter') return;
+
+  const raw = input.value.trim();
+  input.value = '';
+  if (!raw) return;
+
+  // 回显用户输入
+  const echoDiv = document.createElement('div');
+  echoDiv.className = 'output-block cmd-echo';
+  echoDiv.innerHTML = `<span class="echo-prompt">&gt;</span> ${escapeHtml(raw)}`;
+  output.appendChild(echoDiv);
+
+  const cmd = normalizeCmd(raw);
+
+  // clear：保留欢迎卡片
+  if (cmd === 'clear') {
+    const welcome = document.getElementById('welcome');
+    output.innerHTML = '';
+    if (welcome) output.appendChild(welcome);
+    scrollToBottom();
+    return;
+  }
+
+  // 查找命令
+  const fn = commands[cmd];
+  if (fn) {
+    const result = fn();
+    if (result !== null) appendHTML(result);
+  } else {
+    appendHTML(`<span class="error">command not found: ${escapeHtml(raw)}</span>\n<span class="dim">输入 help 查看可用指令。</span>`);
+  }
+  scrollToBottom();
+});
+
+// Tab 补全
+function handleTab() {
+  let val = input.value.trim().toLowerCase();
+  if (val.startsWith('/')) val = val.slice(1);
+  if (!val) {
+    appendHTML(`<span class="dim">${cmdNames.join('  ')}</span>`);
+    return;
+  }
+  const matches = cmdNames.filter(c => c.startsWith(val));
+  if (matches.length === 1) {
+    input.value = matches[0];
+  } else if (matches.length > 1) {
+    appendHTML(`<span class="dim">${matches.join('  ')}</span>`);
+  }
+}
+
+// 点击聚焦（不拦截链接点击）
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('a')) input.focus();
+});
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>
